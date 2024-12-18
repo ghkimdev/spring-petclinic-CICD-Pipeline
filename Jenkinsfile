@@ -7,7 +7,6 @@ pipeline {
     }
     
     environment {
-        APP_NAME = "account"
         RELEASE = "1.0.0"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
         DOCKER_REGISTRY = "ghkimdev"
