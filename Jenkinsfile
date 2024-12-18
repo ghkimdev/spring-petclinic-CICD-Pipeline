@@ -15,24 +15,24 @@ pipeline {
     }
 
     stages {
-        stage("Slack Send Channel") {
+        stage("Notify Start to Slack") {
             steps {
                 script {
                     slackSend channel: 'jenkins-noti', color: 'good', message: "${env.JOB_NAME} - #${env.BUILD_NUMBER} Started by ${env.USER} (<${env.BUILD_URL}|Open>)", tokenCredentialId: 'slack-credential'
                 }
             }
         }
-        stage("Clean Up") {
+        stage("Workspace CleanUp") {
             steps {
                 cleanWs()
             }
         }
-        stage('Checkout from Git') {
+        stage('Checkout Source Code') {
             steps {
                 git branch: 'main', credentialsId: 'git-credential', url: 'https://github.com/ghkimdev/spring-petclinic-CICD-Pipeline.git'
             }
         }
-        stage('build') {
+        stage('Build & Unit Tests') {
             steps {
                 script {
                     withMaven(maven:'maven3') {
@@ -41,7 +41,7 @@ pipeline {
                 }
             }
         }
-        stage('SonarQube analysis') {
+        stage('Static Code Analysis with SonarQube') {
             steps {
                 script {
                     withSonarQubeEnv(credentialsId: 'sonarqube-token') {
@@ -52,14 +52,14 @@ pipeline {
                 }
             }
         }
-        stage("Quality Gate") {
+        stage("Quality Gate Check") {
             steps {
                 script {
                     waitForQualityGate abortPipeline: false, credentialsId: 'sonarqube-token'
                 }
             }
         }
-        stage("OWASP ZAP") {
+        stage("Dependency Scanning with OWASP Dependency-check") {
             steps {
                 script {
                     dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dp-check', stopBuild: false
@@ -68,7 +68,7 @@ pipeline {
                 }
             }
         }
-        stage("Trivy File System Scan") {
+        stage("File System Vulnerability Scan with Trivy") {
             steps {
                 sh 'trivy fs --severity HIGH,CRITICAL --no-progress --format table -o trivy-fs-report.html .'
                 sh 'rm -f trivy-fs-report.html'
@@ -87,7 +87,7 @@ pipeline {
                 sh './mvnw spring-boot:build-image'
             }
         }
-        stage("Docker Build & Push") {
+        stage("Docker Push") {
             steps {
                 script {
                     withDockerRegistry(credentialsId: 'docker-credential') {
@@ -99,13 +99,13 @@ pipeline {
                 }
             }
         }
-        stage("Trivy Image Scan") {
+        stage("Container Image Vulnerability Scan with Trivy") {
             steps {
                 sh 'trivy image ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG} --format table -o trivy-image-report.html'
                 sh 'rm -f trivy-image-report.html'
             }
         }
-        stage("Update the Deployment Tags") {
+        stage("Kubernetes Deployment Update") {
             steps {
                 sh """
                    cat k8s/petclinic.yml
