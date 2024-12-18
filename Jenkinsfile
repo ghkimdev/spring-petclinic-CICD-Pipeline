@@ -22,11 +22,6 @@ pipeline {
                 }
             }
         }
-        stage("Workspace CleanUp") {
-            steps {
-                cleanWs()
-            }
-        }
         stage('Checkout Source Code') {
             steps {
                 git branch: 'main', credentialsId: 'git-credential', url: 'https://github.com/ghkimdev/spring-petclinic-CICD-Pipeline.git'
