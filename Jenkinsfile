@@ -7,6 +7,7 @@ pipeline {
     }
     
     environment {
+        APP_NAME = "account"
         RELEASE = "1.0.0"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
         DOCKER_REGISTRY = "ghkimdev"
@@ -15,19 +16,20 @@ pipeline {
     }
 
     stages {
-        stage("Notify Start to Slack") {
+        stage("Slack Send Channel") {
             steps {
                 script {
                     slackSend channel: 'jenkins-noti', color: 'good', message: "${env.JOB_NAME} - #${env.BUILD_NUMBER} Started by ${env.USER} (<${env.BUILD_URL}|Open>)", tokenCredentialId: 'slack-credential'
                 }
             }
         }
-        stage('Checkout Source Code') {
+        stage('Checkout from Git') {
             steps {
-                git branch: 'main', credentialsId: 'git-credential', url: 'https://github.com/ghkimdev/spring-petclinic-CICD-Pipeline.git'
+                cleanWs()
+                git branch: 'main', credentialsId: 'git-credential', url: 'https://github.com/ghkimdev/spring-petclinic.git'
             }
         }
-        stage('Build & Unit Tests') {
+        stage('build') {
             steps {
                 script {
                     withMaven(maven:'maven3') {
@@ -36,7 +38,7 @@ pipeline {
                 }
             }
         }
-        stage('Static Code Analysis with SonarQube') {
+        stage('SonarQube analysis') {
             steps {
                 script {
                     withSonarQubeEnv(credentialsId: 'sonarqube-token') {
@@ -47,26 +49,21 @@ pipeline {
                 }
             }
         }
-        stage("Quality Gate Check") {
+        stage("Quality Gate") {
             steps {
                 script {
                     waitForQualityGate abortPipeline: false, credentialsId: 'sonarqube-token'
                 }
             }
         }
-        stage("Dependency Scanning with OWASP Dependency-check") {
+        stage("OWASP ZAP") {
             steps {
                 script {
                     dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dp-check', stopBuild: false
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    s3Upload consoleLogLevel: 'INFO', dontSetBuildResultOnFailure: false, dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: true, selectedRegion: 'ap-northeast-2', showDirectlyInBrowser: false, sourceFile: 'dependency-check-report.xml', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'demoprofile', userMetadata: []
                     sh 'rm -f dependency-check-report.xml' 
                 }
-            }
-        }
-        stage("File System Vulnerability Scan with Trivy") {
-            steps {
-                sh 'trivy fs --severity HIGH,CRITICAL --no-progress --format table -o trivy-fs-report.html .'
-                sh 'rm -f trivy-fs-report.html'
             }
         }
         stage("Nexus Artifact Upload") {
@@ -82,7 +79,7 @@ pipeline {
                 sh './mvnw spring-boot:build-image'
             }
         }
-        stage("Docker Push") {
+        stage("Docker Build & Push") {
             steps {
                 script {
                     withDockerRegistry(credentialsId: 'docker-credential') {
@@ -94,13 +91,14 @@ pipeline {
                 }
             }
         }
-        stage("Container Image Vulnerability Scan with Trivy") {
+        stage("Trivy Image Scan") {
             steps {
                 sh 'trivy image ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG} --format table -o trivy-image-report.html'
+                s3Upload consoleLogLevel: 'INFO', dontSetBuildResultOnFailure: false, dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: true, selectedRegion: 'ap-northeast-2', showDirectlyInBrowser: false, sourceFile: 'trivy-image-report.html', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'demoprofile', userMetadata: []
                 sh 'rm -f trivy-image-report.html'
             }
         }
-        stage("Kubernetes Deployment Update") {
+        stage("Update the Deployment Tags") {
             steps {
                 sh """
                    cat k8s/petclinic.yml
@@ -119,7 +117,7 @@ pipeline {
                     git commit -m "Update petclinic.yml"
                 """
                 withCredentials([gitUsernamePassword(credentialsId: 'git-credential', gitToolName: 'Default')]) {
-                    sh 'git push https://github.com/ghkimdev/spring-petclinic-CICD-Pipeline.git main'
+                    sh 'git push https://github.com/ghkimdev/spring-petclinic.git main'
                 }
             }
         } 
