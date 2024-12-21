@@ -7,12 +7,10 @@ pipeline {
     }
     
     environment {
-        APP_NAME = "account"
         RELEASE = "1.0.0"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
-        DOCKER_REGISTRY = "ghkimdev"
+        DOCKER_REGISTRY = "198669202299.dkr.ecr.ap-northeast-2.amazonaws.com"
         DOCKER_REPOSITORY = "spring-petclinic"
-        JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
     }
 
     stages {
@@ -61,7 +59,9 @@ pipeline {
                 script {
                     dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dp-check', stopBuild: false
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                    s3Upload consoleLogLevel: 'INFO', dontSetBuildResultOnFailure: false, dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: true, selectedRegion: 'ap-northeast-2', showDirectlyInBrowser: false, sourceFile: 'dependency-check-report.xml', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'demoprofile', userMetadata: []
+                    withAWS(credentials: 'aws-credential', region: 'ap-northeast-2') {
+                        sh 'aws s3 cp dependency-check-report.xml s3://my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}/dependency-check-report.xml'
+                    }
                     sh 'rm -f dependency-check-report.xml' 
                 }
             }
@@ -79,22 +79,25 @@ pipeline {
                 sh './mvnw spring-boot:build-image'
             }
         }
-        stage("Docker Build & Push") {
+        stage("Docker Push") {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-credential') {
-                        sh 'docker tag ${DOCKER_REPOSITORY}:3.4.0-SNAPSHOT ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}'
-                        sh 'docker push "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}"'
-                        sh 'docker rmi "${DOCKER_REPOSITORY}:3.4.0-SNAPSHOT"'
-                        sh 'docker rmi "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}"'
+                    withAWS(credentials: 'aws-credential', region: 'ap-northeast-2') {
+                        sh 'aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
                     }
+                    sh 'docker tag ${DOCKER_REPOSITORY}:3.4.0-SNAPSHOT ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}'
+                    sh 'docker push "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}"'
+                    sh 'docker rmi "${DOCKER_REPOSITORY}:3.4.0-SNAPSHOT"'
+                    sh 'docker rmi "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG}"'
                 }
             }
         }
         stage("Trivy Image Scan") {
             steps {
                 sh 'trivy image ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG} --format table -o trivy-image-report.html'
-                s3Upload consoleLogLevel: 'INFO', dontSetBuildResultOnFailure: false, dontWaitForConcurrentBuildCompletion: false, entries: [[bucket: 'my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}', excludedFile: '', flatten: false, gzipFiles: false, keepForever: false, managedArtifacts: false, noUploadOnFailure: true, selectedRegion: 'ap-northeast-2', showDirectlyInBrowser: false, sourceFile: 'trivy-image-report.html', storageClass: 'STANDARD', uploadFromSlave: false, useServerSideEncryption: false]], pluginFailureResultConstraint: 'FAILURE', profileName: 'demoprofile', userMetadata: []
+                withAWS(credentials: 'aws-credential', region: 'ap-northeast-2') {
+                    sh 'aws s3 cp trivy-image-report.html s3://my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}/trivy-image-report.html'
+                }
                 sh 'rm -f trivy-image-report.html'
             }
         }
@@ -102,7 +105,7 @@ pipeline {
             steps {
                 sh """
                    cat k8s/petclinic.yml
-                   sed -i 's/${DOCKER_REPOSITORY}:.*/${DOCKER_REPOSITORY}:${IMAGE_TAG}/g' k8s/petclinic.yml
+                   sed -i 's|${DOCKER_REPOSITORY}:.*|${DOCKER_REPOSITORY}:${IMAGE_TAG}|g' k8s/petclinic.yml
                    cat k8s/petclinic.yml
                 """
             }
@@ -132,4 +135,3 @@ pipeline {
         }
     }
 }
-
