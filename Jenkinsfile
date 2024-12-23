@@ -79,6 +79,15 @@ pipeline {
                 sh './mvnw spring-boot:build-image'
             }
         }
+        stage("Trivy Image Scan") {
+            steps {
+                sh 'trivy image ${DOCKER_REPOSITORY}:3.4.0-SNAPSHOT --format table -o trivy-image-report.html'
+                withAWS(credentials: 'aws-credential', region: 'ap-northeast-2') {
+                    sh 'aws s3 cp trivy-image-report.html s3://my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}/trivy-image-report.html'
+                }
+                sh 'rm -f trivy-image-report.html'
+            }
+        }
         stage("Docker Push") {
             steps {
                 script {
@@ -92,15 +101,6 @@ pipeline {
                 }
             }
         }
-        stage("Trivy Image Scan") {
-            steps {
-                sh 'trivy image ${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${IMAGE_TAG} --format table -o trivy-image-report.html'
-                withAWS(credentials: 'aws-credential', region: 'ap-northeast-2') {
-                    sh 'aws s3 cp trivy-image-report.html s3://my-jenkins-s3-bucket/${JOB_NAME}-${BUILD_NUMBER}/trivy-image-report.html'
-                }
-                sh 'rm -f trivy-image-report.html'
-            }
-        }
         stage("Update the Deployment Tags") {
             steps {
                 sh """
@@ -110,7 +110,6 @@ pipeline {
                 """
             }
         }
-
         stage("Push the changed deployment file to Git") {
             steps {
                 sh """
@@ -124,7 +123,6 @@ pipeline {
                 }
             }
         } 
-        
     }
     post {
         success {
