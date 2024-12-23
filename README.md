@@ -2,7 +2,6 @@
 
 이 프로젝트는 Jenkins를 사용해서 DevSecOps를 구현한 CI/CD 파이프라인 입니다. 프로젝트를 위해 샘플 오픈소스 프로젝트 [spring-petclinic](https://github.com/spring-projects/spring-petclinic)을 사용했습니다.
 
-## **파이프라인 다이어그램**
 ![PipelineDiagram](./devsecops.png)
 
 ## **사전 요구사항**
