@@ -213,15 +213,3 @@ pipeline {
     }
 }
 ```
-
-
-## **참고**
-https://www.practical-devsecops.com/what-is-devsecops-pipelines/
-
-https://www.practical-devsecops.com/devsecops-best-practices/
-
-https://medium.com/cloud-native-daily/building-a-devsecops-pipeline-with-open-source-tools-ad4fd0e13515
-
-https://ranjaniitian.medium.com/what-is-devsecops-and-why-should-you-care-51dea54b06bf
-
-https://www.microsoft.com/en-us/security/business/security-101/what-is-devsecops
