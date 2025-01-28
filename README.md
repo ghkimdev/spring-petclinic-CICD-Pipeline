@@ -59,11 +59,11 @@ OWASP ZAP을 사용하여 애플리케이션의 보안 취약점을 스캔합니
 8. Docker 이미지 빌드
 Docker를 사용하여 애플리케이션을 컨테이너화하고, 해당 이미지를 생성합니다. spring-boot:build-image 명령어를 통해 Spring Boot 애플리케이션을 Docker 이미지로 빌드합니다.
 
-9. Docker 이미지 푸시
-빌드된 Docker 이미지를 AWS ECR에 푸시하여, 이후 Kubernetes에서 사용할 수 있도록 합니다.
-
-10. Trivy 이미지 보안 스캔
+9. Trivy 이미지 보안 스캔
 Trivy를 사용하여 빌드된 Docker 이미지에 대한 보안 취약점 스캔을 실행하고, 결과를 HTML 형식으로 저장하여 S3 버킷에 업로드합니다.
+
+10. Docker 이미지 푸시
+빌드된 Docker 이미지를 AWS ECR에 푸시하여, 이후 Kubernetes에서 사용할 수 있도록 합니다.
 
 11. Kubernetes 배포 파일 업데이트
 petclinic.yml 파일의 Docker 이미지 태그를 새로운 IMAGE_TAG로 업데이트하여 최신 이미지를 반영합니다.
